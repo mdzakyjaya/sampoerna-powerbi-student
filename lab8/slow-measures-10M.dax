@@ -1,0 +1,140 @@
+-- slow-measures-10M.dax: Lab 8, DAX optimization, on SQLBI's Contoso 10M model
+--
+-- Model: "Contoso 10M.pbix" (SQLBI, Contoso Data Generator V2, 23,719,935 sales lines).
+-- Its names differ from the training model: Sales, Customer, Product, Store, Date;
+-- measures Sales Amount, Total Cost, Margin, Margin %, Total Quantity. The online
+-- store is Store[Country] = "Online" (StoreKey 999999).
+--
+-- How to use:
+--   1. Open DAX query view, paste this whole file, and Run. The query at the end
+--      shows each slow measure next to its refactored form by Year and Country:
+--      the numbers must be the same. A second query does the same by Year only;
+--      compare it with the expected results in README.md.
+--   2. Click "Update model with changes" above each DEFINE MEASURE line to add the
+--      measure to the model. Put the slow measures in a table by 'Date'[Year] and
+--      Store[Country], record with Performance Analyzer, refactor, record again.
+--
+-- The slow names end in "(slow)", the refactored forms in "(refactored)".
+-- Sales Amount PY is a base measure the patterns need and the model does not have.
+
+DEFINE
+
+    -- Base measure: last year's sales. Needs 'Date' marked as the date table (it is).
+    MEASURE Sales[Sales Amount PY] =
+        CALCULATE ( [Sales Amount], SAMEPERIODLASTYEAR ( 'Date'[Date] ) )
+
+    -- Pattern 1. Filter a column, not the fact table ---------------------------------
+    -- WHY: FILTER ( Sales, ... ) walks 23.7 million lines and calls RELATED on each;
+    --      a column predicate filters the 74 rows of Store and lets the relationship
+    --      carry the filter. KEEPFILTERS keeps a Country filter that is already there,
+    --      as FILTER ( Sales, ... ) does.
+    MEASURE Sales[Online Sales (slow)] =
+        CALCULATE (
+          [Sales Amount],
+          FILTER (
+            Sales,
+            RELATED ( Store[Country] )
+              = "Online"
+          )
+        )
+    MEASURE Sales[Online Sales (refactored)] =
+        CALCULATE (
+          [Sales Amount],
+          KEEPFILTERS ( Store[Country] = "Online" )
+        )
+
+    -- Pattern 2. Evaluate each measure once with VAR, and let DIVIDE handle zero ---------
+    -- WHY: [Sales Amount PY] is written three times and may be computed three times;
+    --      VAR computes it once, and DIVIDE returns BLANK on zero without an IF.
+    MEASURE Sales[YoY % (slow)] =
+        IF (
+            [Sales Amount PY] = 0,
+            BLANK (),
+            ( [Sales Amount]
+              - [Sales Amount PY] )
+              / [Sales Amount PY]
+        )
+    MEASURE Sales[YoY % (refactored)] =
+        VAR Cur = [Sales Amount]
+        VAR Prev = [Sales Amount PY]
+        RETURN
+            DIVIDE ( Cur - Prev, Prev )
+
+    -- Pattern 3. SWITCH reads top to bottom and evaluates the growth once ------------------
+    -- WHY: each IF test calls the YoY measure again, up to four times per cell, nested
+    --      four deep; a VAR computes it once and SWITCH ( TRUE (), ... ) takes the first
+    --      condition that holds, so order the thresholds from the highest.
+    --      The ISBLANK test keeps the first year (no last year) blank in both forms.
+    MEASURE Sales[Growth Status (slow)] =
+        IF ( ISBLANK ( [YoY % (refactored)] ),
+          BLANK (),
+          IF ( [YoY % (refactored)] >= 0.1,
+            "Strong growth",
+            IF ( [YoY % (refactored)] >= 0,
+              "Growth",
+              IF ( [YoY % (refactored)] >= -0.1,
+                "Decline",
+                "Strong decline" ) ) ) )
+    MEASURE Sales[Growth Status (refactored)] =
+        VAR G = [YoY % (refactored)]
+        RETURN
+          SWITCH ( TRUE (),
+            ISBLANK ( G ), BLANK (),
+            G >= 0.1,  "Strong growth",
+            G >= 0,    "Growth",
+            G >= -0.1, "Decline",
+            "Strong decline" )
+
+    -- Pattern 4. A sales column stores a value per line; SUMX computes it at query time ---
+    -- WHY: a calculated column keeps one value per line for 23.7 million lines, with
+    --      about 163,000 distinct values, so it adds a large column to the model;
+    --      SUMX multiplies two narrow columns (Quantity 10 distinct values, Net Price
+    --      24,753) at query time.
+    -- A calculated column cannot be added from DAX query view. Add it with
+    -- Table view > Sales > New column (it takes a while and uses memory: that is the
+    -- point), then add the measure, and compare the model size in DAX Studio
+    -- (Advanced > View Metrics) with and without the column:
+    --
+    --     Line Amount =
+    --     Sales[Quantity] * Sales[Net Price]
+    --
+    --     Sales Amount (from column) =
+    --     SUM ( Sales[Line Amount] )
+    --
+    -- The refactored form is the model's own Sales Amount measure:
+    MEASURE Sales[Sales Amount (refactored)] =
+        SUMX ( Sales, Sales[Quantity] * Sales[Net Price] )
+    -- The same size lesson for columns you load but do not use: Customer[Address]
+    -- (851,051 distinct values) and Customer[Name] (942,463) are 64% of the Customer
+    -- table's size, and no report uses them.
+
+EVALUATE
+SUMMARIZECOLUMNS (
+    'Date'[Year],
+    Store[Country],
+    "Online Sales (slow)", [Online Sales (slow)],
+    "Online Sales (refactored)", [Online Sales (refactored)],
+    "YoY % (slow)", [YoY % (slow)],
+    "YoY % (refactored)", [YoY % (refactored)],
+    "Growth Status (slow)", [Growth Status (slow)],
+    "Growth Status (refactored)", [Growth Status (refactored)],
+    "Sales Amount", [Sales Amount],
+    "Sales Amount (refactored)", [Sales Amount (refactored)]
+)
+ORDER BY 'Date'[Year], Store[Country]
+
+-- The same pairs by year only: compare with the table "Expected results" in README.md.
+EVALUATE
+SUMMARIZECOLUMNS (
+    'Date'[Year],
+    "Sales Amount", [Sales Amount],
+    "Online Sales (slow)", [Online Sales (slow)],
+    "Online Sales (refactored)", [Online Sales (refactored)],
+    "Sales Amount PY", [Sales Amount PY],
+    "YoY % (slow)", [YoY % (slow)],
+    "YoY % (refactored)", [YoY % (refactored)],
+    "Growth Status (slow)", [Growth Status (slow)],
+    "Growth Status (refactored)", [Growth Status (refactored)],
+    "Sales Amount (refactored)", [Sales Amount (refactored)]
+)
+ORDER BY 'Date'[Year]

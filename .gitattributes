@@ -1,0 +1,4 @@
+*.csv -text
+*.dax text eol=crlf
+*.pbix binary
+*.pdf binary
