@@ -1,0 +1,11 @@
+let p = [Province] in
+if [Channel] = "Online" then "Online"
+else if Text.StartsWith(p, "Kalimantan") then "Kalimantan"
+else if Text.StartsWith(p, "Sulawesi") or p = "Gorontalo"
+    then "Sulawesi"
+else if Text.StartsWith(p, "Sumatera")
+    or List.Contains({"Aceh", "Riau", "Jambi", "Bengkulu"}, p)
+    then "Sumatera"
+else if List.Contains({"Maluku", "Maluku Utara", "Papua",
+    "Papua Barat", "Nusa Tenggara Barat"}, p) then "Timur"
+else "Jawa"
