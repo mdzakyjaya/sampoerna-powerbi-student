@@ -73,19 +73,24 @@ df["MonthStart"] = pd.to_datetime(df["MonthStart"])
 history = df.sort_values("MonthStart").set_index("MonthStart")["Revenue"].astype(float).asfreq("MS")
 
 # 3. Holt-Winters: a trend that flattens out (damped) plus a 12-month season
-model = ExponentialSmoothing(history, trend="add", damped_trend=True, seasonal="add", seasonal_periods=12).fit()
+#    that grows and shrinks with the level (mul); heuristic start values
+#    give the same result on every laptop
+model = ExponentialSmoothing(history, trend="add", damped_trend=True, seasonal="mul",
+                             seasonal_periods=12, initialization_method="heuristic").fit()
 
 # 4. Forecast the months left in the last year: April to December 2024
 months_left = 12 - history.index[-1].month
 prediction = model.forecast(months_left)
 
-# 5. Return MonthStart as ISO text (yyyy-mm-dd), so Power Query reads it in any locale
-forecast = pd.DataFrame({"MonthStart": prediction.index.strftime("%Y-%m-%d"), "Forecast": prediction.round(0).values})
+# 5. Return MonthStart as ISO text and Forecast as a whole number (no decimal point),
+#    so Power Query reads both the same way in any locale
+forecast = pd.DataFrame({"MonthStart": prediction.index.strftime("%Y-%m-%d"),
+                         "Forecast": prediction.round(0).astype("int64").values})
 ```
 
 Power BI shows a table of the tables that the script made. In the row `forecast`, click **Table**.
 
-The columns come back as text. Click **fx** in the formula bar and paste this step. Replace `forecast` with the name of your last step if it is different.
+The columns come back as text. Click **fx** in the formula bar and paste this step. Replace `forecast` with the name of your last step if it is different. Do not use the type icon in the column header instead: it reads the text with your laptop's locale, and with Indonesian settings a dot is a thousands separator.
 
 ```m
 = Table.TransformColumnTypes(forecast, {{"MonthStart", type date}, {"Forecast", type number}}, "en-US")
@@ -100,14 +105,14 @@ We held out 2023, trained on the years before, and compared the forecast with th
 | Model | 2023: MAPE per month | 2023: total against actual $31,871,231 | Apr–Dec 2023: MAPE | 2022: MAPE |
 |---|---|---|---|---|
 | Seasonal naive (same month last year) | 38.9% | $43,426,104 (+36.3%) | 46.9% | 50.9% |
-| Holt-Winters, additive season, no trend | 52.5% | $43,224,860 (+35.6%) | 29.9% | 23.0% |
-| Holt-Winters, additive season, damped trend | 44.2% | $40,587,279 (+27.3%) | 23.7% | 25.0% |
-| Holt-Winters, multiplicative season, damped trend | 54.1% | $41,576,764 (+30.5%) | 24.3% | 27.9% |
-| Holt-Winters, multiplicative season, damped trend, last 5 years only | 41.8% | $37,435,897 (+17.5%) | 27.1% | 31.3% |
+| Holt-Winters, additive season, damped trend | 34.5% | $40,517,803 (+27.1%) | 12.2% | 16.1% |
+| Holt-Winters, multiplicative season, damped trend | 19.9% | $37,970,826 (+19.1%) | 6.6% | 16.7% |
 
-All models use the full history from 2015, except the last row. MAPE is the mean absolute percentage error of the monthly forecast.
+Both Holt-Winters models use the full history from 2015 and heuristic start values. MAPE is the mean absolute percentage error of the monthly forecast.
 
-No model forecasts 2023 well: revenue fell 27% from 2022, and no model saw the fall coming. In 2023 the seasonal naive has the lowest monthly error, but it misses the year total by the most. In the other two tests, Holt-Winters with an additive season and a damped trend has about half the error of the seasonal naive. It is also the simplest model that is good in all three tests: one setting for the trend, one for the season, and no choice of time window.
+The multiplicative season wins two of the three tests and ties the third, so the script uses it. Its season grows and shrinks with the level of revenue, which fits a business whose size changed a lot from year to year. No model forecasts 2023 well: revenue fell 27% from 2022, and no model saw the fall coming.
+
+We use heuristic start values because the default (estimated) start values make the result depend on tiny rounding differences in the input, so two laptops could show different forecasts.
 
 ## 4. Model
 
@@ -138,7 +143,7 @@ RETURN
 Estimate vs Target % = DIVIDE ( [Revenue Estimate], [Target] )
 ```
 
-Check: with Year = 2024, `Revenue Estimate` is $27,300,307, `Target` is $42,000,000 and `Estimate vs Target %` is 65.0%.
+Check: with Year = 2024, `Revenue Estimate` is $26,279,740, `Target` is $42,000,000 and `Estimate vs Target %` is 62.6%.
 
 ## 6. Visuals
 
@@ -157,22 +162,22 @@ To show the forecast as a dashed line: **Format visual > Lines**, select the ser
 
 **Card (new): the year estimate.** On the page `Forecast`. Values `Revenue Estimate`, `Target`, `Estimate vs Target %`. Filter on the visual: Year = 2024.
 
-The answer: no. With the forecast, 2024 reaches about 65% of its target, a gap of about $14.7 million.
+The answer: no. With the forecast, 2024 reaches about 63% of its target, a gap of about $15.7 million.
 
 Forecast per month:
 
 | MonthStart | Forecast |
 |---|---|
-| 2024-04-01 | $1,279,878 |
-| 2024-05-01 | $2,409,018 |
-| 2024-06-01 | $2,519,072 |
-| 2024-07-01 | $2,020,641 |
-| 2024-08-01 | $2,159,390 |
-| 2024-09-01 | $2,207,701 |
-| 2024-10-01 | $2,246,819 |
-| 2024-11-01 | $2,222,361 |
-| 2024-12-01 | $2,610,271 |
-| Total | $19,675,151 |
+| 2024-04-01 | $864,634 |
+| 2024-05-01 | $2,232,413 |
+| 2024-06-01 | $2,539,298 |
+| 2024-07-01 | $1,892,079 |
+| 2024-08-01 | $2,008,039 |
+| 2024-09-01 | $2,014,795 |
+| 2024-10-01 | $2,186,475 |
+| 2024-11-01 | $2,163,105 |
+| 2024-12-01 | $2,753,746 |
+| Total | $18,654,584 |
 
 Another version of statsmodels can give numbers that differ a little.
 
@@ -183,3 +188,4 @@ Another version of statsmodels can give numbers that differ a little.
 - **`Formula.Firewall`**: set **Ignore the Privacy Levels** in step 2, then click **Refresh preview**.
 - **The script times out**: Power BI stops a Python script after 30 minutes. This script takes a few seconds. If it runs long, check that the step before it is `MonthStart as text` with 111 rows, not the full FactSales table.
 - **The date column comes back as text**: add the type step after `forecast` (step 3). Its locale `en-US` reads `yyyy-mm-dd` on every laptop.
+- **The forecast is about ten times too large**: the type step was made with the type icon, without the locale `en-US`, so a dot was read as a thousands separator. Replace it with the step in step 3.
