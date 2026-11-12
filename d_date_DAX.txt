@@ -1,0 +1,11 @@
+DimDate =
+VAR LastSale = MAX ( FactSales[OrderDate] )
+RETURN
+ADDCOLUMNS (
+    CALENDAR ( DATE ( 2015, 1, 1 ), DATE ( 2024, 12, 31 ) ),
+    "Year", YEAR ( [Date] ),
+    "MonthNo", MONTH ( [Date] ),
+    "Month", FORMAT ( [Date], "mmm" ),
+    "MonthStart", DATE ( YEAR ( [Date] ), MONTH ( [Date] ), 1 ),
+    "IsPastSales", [Date] <= LastSale
+)
