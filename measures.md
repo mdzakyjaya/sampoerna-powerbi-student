@@ -159,21 +159,17 @@ First make the table for the axis: **Home > Enter data**, name it `Bridge`, with
 | Price | 2 |
 | Volume | 3 |
 
-Then add the revenue at list price to FactSales. In Power Query, select **FactSales**, click **fx** in the formula bar, and paste this step. Replace `#"Inserted Multiplication1"` with the name of your last step. The step merges DimProduct on `ProductKey` (left outer, as **Home > Merge Queries** does), takes only `Price`, adds the column `SalesAtListPrice`, and then removes `Price` again. Then click **Home > Close & Apply**.
-
-```m
-= let
-    Merged = Table.NestedJoin(#"Inserted Multiplication1", {"ProductKey"}, DimProduct, {"ProductKey"}, "DimProduct", JoinKind.LeftOuter),
-    Expanded = Table.ExpandTableColumn(Merged, "DimProduct", {"Price"}, {"Price"}),
-    Added = Table.AddColumn(Expanded, "SalesAtListPrice", each [Quantity] * [Price] * (1 - [Disc]), type number)
-in
-    Table.RemoveColumns(Added, {"Price"})
-```
-
 Format: currency with 0 decimals.
 
+This is the case where SUMX is needed. `Sales` and `CoGS` are Power Query columns because both factors are already in FactSales. The list price is in DimProduct, so SUMX reads it for each sales line through RELATED, and the price is not copied into the fact table.
+
 ```dax
-Revenue at List Price = SUM ( FactSales[SalesAtListPrice] )
+Revenue at List Price =
+SUMX (
+    FactSales,
+    FactSales[Quantity] * RELATED ( DimProduct[Price] )
+        * ( 1 - FactSales[Disc] )
+)
 ```
 
 ```dax
