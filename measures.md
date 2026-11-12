@@ -223,12 +223,6 @@ Selected Store = SELECTEDVALUE ( DimStore[StoreName], "Several stores" )
 
 ![Store detail page](img/store-detail.png)
 
-The bar chart on this page needs `DimProduct[CategoryName]`. In Power Query, select **DimProduct**, then select the step **Removed Columns** in Applied Steps. In the formula bar, replace the formula with this one, which keeps `CategoryName`, and press Enter. Then click **Home > Close & Apply**.
-
-```m
-= Table.RemoveColumns(#"Renamed Columns", {"Brand", "SubCategoryName", "Weight", "WeightUnit"})
-```
-
 Add a page named `Store detail` and put `DimStore[StoreName]` in **Drill through** in the Build pane. Power BI adds the back button.
 
 | Visual | Fields | Filters on the visual |
