@@ -141,13 +141,20 @@ Check: with Year = 2024, `Revenue Estimate` is $27,300,307, `Target` is $42,000,
 
 ## 6. Visuals
 
-**Line chart: revenue against target.** Add `Forecast Revenue` to the Y-axis, under `Revenue` and `Target`. Then delete the filter `IsPastSales = True` in the Filters pane of this visual. The filter hides all dates after 20 April 2024, so it hides the forecast for May to December. Keep the filter Year = 2022, 2023, 2024.
+The first page does not change: it stays as `measures.md` section 7 builds it. The forecast goes on a new page.
 
-Without the filter, the target shows all 12 months of 2024, and the `Revenue` line drops in April 2024 because April holds only 1 to 20 April. The forecast line shows the full month of April.
+**New page.** Add a page and name it `Forecast`.
+
+**Line chart: revenue against target, with the forecast.** On the first page, select the line chart "revenue against target" and press Ctrl+C. Go to the page `Forecast` and press Ctrl+V. Make these changes on the copy only:
+
+- Add `Forecast Revenue` to the Y-axis, under `Revenue` and `Target`.
+- In the Filters pane of the copy, delete the filter `IsPastSales = True`. The filter hides all dates after 20 April 2024, so it hides the forecast for May to December. Keep the filter Year = 2022, 2023, 2024.
+
+Without the filter, the copy shows the target for all 12 months of 2024, and its `Revenue` line drops in April 2024 because April holds only 1 to 20 April. The forecast line shows the full month of April.
 
 To show the forecast as a dashed line: **Format visual > Lines**, select the series `Forecast Revenue`, then **Line style: Dashed**.
 
-**Card (new): the year estimate.** Values `Revenue Estimate`, `Target`, `Estimate vs Target %`. Filter on the visual: Year = 2024.
+**Card (new): the year estimate.** On the page `Forecast`. Values `Revenue Estimate`, `Target`, `Estimate vs Target %`. Filter on the visual: Year = 2024.
 
 The answer: no. With the forecast, 2024 reaches about 65% of its target, a gap of about $14.7 million.
 
