@@ -95,17 +95,7 @@ Check: with Year = 2024, `Achievement %` is 60.4% and `YoY %` is -22.4%.
 
 ## 3. Online against physical stores
 
-First take the online store out of Banten. In Power Query, select **DimStore**, click **fx** in the formula bar, and paste this step. Replace `#"Added Custom"` with the name of your last step.
-
-```m
-= Table.ReplaceValue(
-    #"Added Custom",
-    each [Province],
-    each if [Channel] = "Online" then "Online" else [Province],
-    Replacer.ReplaceValue,
-    {"Province"}
-)
-```
+The column `DimStore[Channel]` already separates the online store from the physical stores, so no Power Query step is needed. To rank provinces, filter `Channel = Offline`: the online store (999999) is recorded in Tangerang, Banten.
 
 Format: `Online Revenue` and `Store Revenue` as currency with 0 decimals. `Online Share` as percentage with 1 decimal.
 
