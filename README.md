@@ -15,6 +15,7 @@ Extract it to a short path, for example `C:\Training\`. Then the CSV files are i
 | `data/` | Day 1, Labs 1–4 | The six raw CSV files: `sales.csv`, `products.csv`, `stores_plan.csv`, `stores.csv`, `customers.csv`, `target.csv` |
 | `pbix/Contoso-Before.pbix` | Day 1 morning, Day 2 capstone | The "before" dashboard that we critique and then redesign |
 | `measures.md` | Day 2 | The measures and visual settings of the final dashboard, ready to copy |
+| `forecast.md` | Day 2 afternoon | The revenue forecast with Python in Power Query: setup, the M and the script, the measures and the chart |
 | `lab5/contoso-theme-starter.json` | Day 2, Lab 5 | A starter theme to edit |
 | `lab8/slow-measures-10M.dax` | Day 2, Lab 8 | The slow measures to refactor, for `Contoso 10M.pbix` |
 | `lab8/LICENSE-SQLBI.txt` | Day 2, Lab 8 | Licence of the SQLBI Contoso data (MIT) |
