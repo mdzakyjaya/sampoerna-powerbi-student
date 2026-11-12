@@ -38,15 +38,16 @@ Why: the Python step sends data from `sales.csv` to Python, which Power BI treat
 
 ## 3. Power Query: the query `Forecast`
 
+This query reads the column `Sales` of FactSales, so do the Sales fix of `measures.md` section 1 first.
+
 In Power Query: **Home > New Source > Blank Query**. Rename the query to `Forecast`. Then **Home > Advanced Editor**, delete the text, paste this block, and click Done.
 
 ```m
 let
     Source = FactSales,
-    // Revenue per order line, the same formula as the Revenue measure
-    #"Added Revenue" = Table.AddColumn(Source, "Revenue", each [Quantity] * [UnitPrice] * (1 - [Disc]), type number),
-    #"Added MonthStart" = Table.AddColumn(#"Added Revenue", "MonthStart", each Date.StartOfMonth([OrderDate]), type date),
-    #"Grouped by MonthStart" = Table.Group(#"Added MonthStart", {"MonthStart"}, {{"Revenue", each List.Sum([Revenue]), type number}}),
+    #"Added MonthStart" = Table.AddColumn(Source, "MonthStart", each Date.StartOfMonth([OrderDate]), type date),
+    // Revenue per month: the sum of Sales, the same as the Revenue measure. Keep the name Revenue, because the Python script reads it
+    #"Grouped by MonthStart" = Table.Group(#"Added MonthStart", {"MonthStart"}, {{"Revenue", each List.Sum([Sales]), type number}}),
     // April 2024 is a partial month (sales stop on 20 April), so it must not train the model
     #"Removed April 2024" = Table.SelectRows(#"Grouped by MonthStart", each [MonthStart] < #date(2024, 4, 1)),
     // Send the date as ISO text (yyyy-mm-dd), so Python reads it the same way on every laptop
@@ -116,7 +117,7 @@ Drag `Forecast[MonthStart]` onto `DimDate[Date]`. Power BI proposes "One to one"
 
 ## 5. Measures
 
-Select **FactSales**, then **Home > New measure**, as in `measures.md`. Format: currency with 0 decimals, except `Estimate vs Target %` as percentage with 1 decimal.
+Select **Metrics**, then **Home > New measure**, as in `measures.md`. Format: currency with 0 decimals, except `Estimate vs Target %` as percentage with 1 decimal.
 
 ```dax
 Forecast Revenue = SUM ( Forecast[Forecast] )

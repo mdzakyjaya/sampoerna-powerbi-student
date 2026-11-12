@@ -1,28 +1,33 @@
 # Measures for the final dashboard
 
-Copy one block at a time. In Power BI Desktop: select **FactSales**, then **Home > New measure**, paste, press Enter. Then set the format named above the block.
+Copy one block at a time. In Power BI Desktop: select **Metrics**, then **Home > New measure**, paste, press Enter. Then set the format named above the block.
 
 The goal is this page:
 
 ![Final page](img/final-page.png)
 
-## 1. Base measures (Day 1, Lab 2)
+## 1. Fix Sales, then the base measures (Day 1, Lab 2)
 
-You already have these. Copy only the ones you miss.
+Do this first. The column `Sales` in FactSales forgot the discount. In Power Query, select **FactSales**, then select the step **Inserted Multiplication** in Applied Steps. In the formula bar, replace the formula with this one and press Enter:
+
+```m
+= Table.AddColumn(#"Removed Columns", "Sales", each [Quantity] * [UnitPrice] * (1 - [Disc]), type number)
+```
+
+The column `CoGS` (step **Inserted Multiplication1**) is right. Do not change it. Click **Home > Close & Apply**.
+
+Check: `Revenue` is $203,723,866 in total. Every check number in this file assumes this fix.
+
+You already have the base measures. Copy only the ones you miss.
 
 Format: `Revenue`, `Cost`, `Margin`, `Target` as currency with 0 decimals. `Orders`, `Units`, `Customers` as whole number. `AOV` as currency with 2 decimals.
 
 ```dax
-Revenue =
-SUMX (
-    FactSales,
-    FactSales[Quantity] * FactSales[UnitPrice]
-        * ( 1 - FactSales[Disc] )
-)
+Revenue = SUM ( FactSales[Sales] )
 ```
 
 ```dax
-Cost = SUMX ( FactSales, FactSales[Quantity] * FactSales[UnitCost] )
+Cost = SUM ( FactSales[CoGS] )
 ```
 
 ```dax
@@ -90,11 +95,11 @@ Check: with Year = 2024, `Achievement %` is 60.4% and `YoY %` is -22.4%.
 
 ## 3. Online against physical stores
 
-First take the online store out of Banten. In Power Query, select **DimStore**, click **fx** in the formula bar, and paste this step. Replace `#"Added Region"` with the name of your last step.
+First take the online store out of Banten. In Power Query, select **DimStore**, click **fx** in the formula bar, and paste this step. Replace `#"Added Custom"` with the name of your last step.
 
 ```m
 = Table.ReplaceValue(
-    #"Added Region",
+    #"Added Custom",
     each [Province],
     each if [Channel] = "Online" then "Online" else [Province],
     Replacer.ReplaceValue,
@@ -111,7 +116,7 @@ CALCULATE ( [Revenue], KEEPFILTERS ( DimStore[Channel] = "Online" ) )
 
 ```dax
 Store Revenue =
-CALCULATE ( [Revenue], KEEPFILTERS ( DimStore[Channel] = "Store" ) )
+CALCULATE ( [Revenue], KEEPFILTERS ( DimStore[Channel] = "Offline" ) )
 ```
 
 ```dax
@@ -154,15 +159,21 @@ First make the table for the axis: **Home > Enter data**, name it `Bridge`, with
 | Price | 2 |
 | Volume | 3 |
 
+Then add the revenue at list price to FactSales. In Power Query, select **FactSales**, click **fx** in the formula bar, and paste this step. Replace `#"Inserted Multiplication1"` with the name of your last step. The step merges DimProduct on `ProductKey` (left outer, as **Home > Merge Queries** does), takes only `Price`, adds the column `SalesAtListPrice`, and then removes `Price` again. Then click **Home > Close & Apply**.
+
+```m
+= let
+    Merged = Table.NestedJoin(#"Inserted Multiplication1", {"ProductKey"}, DimProduct, {"ProductKey"}, "DimProduct", JoinKind.LeftOuter),
+    Expanded = Table.ExpandTableColumn(Merged, "DimProduct", {"Price"}, {"Price"}),
+    Added = Table.AddColumn(Expanded, "SalesAtListPrice", each [Quantity] * [Price] * (1 - [Disc]), type number)
+in
+    Table.RemoveColumns(Added, {"Price"})
+```
+
 Format: currency with 0 decimals.
 
 ```dax
-Revenue at List Price =
-SUMX (
-    FactSales,
-    FactSales[Quantity] * RELATED ( DimProduct[Price] )
-        * ( 1 - FactSales[Disc] )
-)
+Revenue at List Price = SUM ( FactSales[SalesAtListPrice] )
 ```
 
 ```dax
@@ -210,11 +221,17 @@ Selected Store = SELECTEDVALUE ( DimStore[StoreName], "Several stores" )
 | Waterfall chart: bridge | Category `Bridge[Step]`. Y-axis `Bridge Value` | Year = 2023 |
 | Line chart: channel | X-axis `DimDate[Year]`. Y-axis `Store Revenue`, `Online Revenue` | Year = 2019 to 2023 |
 | Line chart: customers | X-axis `DimDate[Year]`. Y-axis `New Customers`, `Returning Customers` | Year = 2019 to 2023 |
-| Bar chart: ten stores | Y-axis `DimStore[StoreName]`. X-axis `Revenue Change vs PY` | Year = 2023. Channel = Store. `Store Decline Rank` is less than or equal to 10 |
+| Bar chart: ten stores | Y-axis `DimStore[StoreName]`. X-axis `Revenue Change vs PY` | Year = 2023. Channel = Offline. `Store Decline Rank` is less than or equal to 10 |
 
 ## 8. The drill-through page
 
 ![Store detail page](img/store-detail.png)
+
+The bar chart on this page needs `DimProduct[CategoryName]`. In Power Query, select **DimProduct**, then select the step **Removed Columns** in Applied Steps. In the formula bar, replace the formula with this one, which keeps `CategoryName`, and press Enter. Then click **Home > Close & Apply**.
+
+```m
+= Table.RemoveColumns(#"Renamed Columns", {"Brand", "SubCategoryName", "Weight", "WeightUnit"})
+```
 
 Add a page named `Store detail` and put `DimStore[StoreName]` in **Drill through** in the Build pane. Power BI adds the back button.
 
