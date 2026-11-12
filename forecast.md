@@ -40,37 +40,34 @@ Why: the Python step sends data from `sales.csv` to Python, which Power BI treat
 
 This query reads the column `Sales` of FactSales, so do the Sales fix of `measures.md` section 1 first.
 
-In Power Query: **Home > New Source > Blank Query**. Rename the query to `Forecast`. Then **Home > Advanced Editor**, delete the text, paste this block, and click Done.
+In Power Query:
+
+1. Right-click **FactSales** in the Queries pane, then **Reference**. Rename the new query to `Forecast`.
+2. Select the column `OrderDate`. **Add Column > Date > Month > Start of Month**. Power BI adds the column `Start of Month`.
+3. **Transform > Group By**. Group by `Start of Month`. New column name `Revenue`, operation **Sum**, column `Sales`. Keep the name `Revenue`, because the Python script reads it.
+4. Send the date to Python as ISO text (yyyy-mm-dd), so Python reads it the same way on every laptop. Power Query has no menu for this format: click **fx** in the formula bar and paste this step. Replace `#"Grouped Rows"` with the name of your last step if it is different.
 
 ```m
-let
-    Source = FactSales,
-    #"Added MonthStart" = Table.AddColumn(Source, "MonthStart", each Date.StartOfMonth([OrderDate]), type date),
-    // Revenue per month: the sum of Sales, the same as the Revenue measure. Keep the name Revenue, because the Python script reads it
-    #"Grouped by MonthStart" = Table.Group(#"Added MonthStart", {"MonthStart"}, {{"Revenue", each List.Sum([Sales]), type number}}),
-    // April 2024 is a partial month (sales stop on 20 April), so it must not train the model
-    #"Removed April 2024" = Table.SelectRows(#"Grouped by MonthStart", each [MonthStart] < #date(2024, 4, 1)),
-    // Send the date as ISO text (yyyy-mm-dd), so Python reads it the same way on every laptop
-    #"MonthStart as text" = Table.TransformColumns(#"Removed April 2024", {{"MonthStart", each Date.ToText(_, [Format = "yyyy-MM-dd"]), type text}})
-in
-    #"MonthStart as text"
+= Table.TransformColumns(#"Grouped Rows", {{"Start of Month", each Date.ToText(_, [Format = "yyyy-MM-dd"]), type text}})
 ```
+
+5. April 2024 is a partial month (sales stop on 20 April), so it must not train the model. Open the filter of `Start of Month` and clear `2024-04-01`.
 
 Check: the table has 111 rows, from 2015-01-01 to 2024-03-01.
 
 Then **Transform > Run Python script**, paste this script, and click OK. If Power BI asks for permission to run the script, click **Run**.
 
 ```python
-# 'dataset' comes from Power Query: MonthStart and Revenue, one row per full month
+# 'dataset' comes from Power Query: Start of Month and Revenue, one row per full month
 import pandas as pd
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
-# 1. Read MonthStart as a date, whether it arrives as text or as datetime
+# 1. Read Start of Month as a date, whether it arrives as text or as datetime
 df = dataset.copy()
-df["MonthStart"] = pd.to_datetime(df["MonthStart"])
+df["Start of Month"] = pd.to_datetime(df["Start of Month"])
 
 # 2. Make a monthly series in date order (MS = the first day of each month)
-history = df.sort_values("MonthStart").set_index("MonthStart")["Revenue"].astype(float).asfreq("MS")
+history = df.sort_values("Start of Month").set_index("Start of Month")["Revenue"].astype(float).asfreq("MS")
 
 # 3. Holt-Winters: a trend that flattens out (damped) plus a 12-month season
 #    that grows and shrinks with the level (mul); heuristic start values
@@ -186,6 +183,6 @@ Another version of statsmodels can give numbers that differ a little.
 - **Python not found**, or "Python home directory is not valid": the home directory in step 2 is wrong or is a `WindowsApps` path. Run the command of step 1 and select the folder that it prints.
 - **`No module named pandas`** (or `statsmodels`): the packages are installed for another Python. Run `python -m pip install pandas matplotlib statsmodels` with the same `python.exe` that Power BI uses, then restart Power BI Desktop.
 - **`Formula.Firewall`**: set **Ignore the Privacy Levels** in step 2, then click **Refresh preview**.
-- **The script times out**: Power BI stops a Python script after 30 minutes. This script takes a few seconds. If it runs long, check that the step before it is `MonthStart as text` with 111 rows, not the full FactSales table.
+- **The script times out**: Power BI stops a Python script after 30 minutes. This script takes a few seconds. If it runs long, check that the step before it is the filter of step 5, with 111 rows, not the full FactSales table.
 - **The date column comes back as text**: add the type step after `forecast` (step 3). Its locale `en-US` reads `yyyy-mm-dd` on every laptop.
 - **The forecast is about ten times too large**: the type step was made with the type icon, without the locale `en-US`, so a dot was read as a thousands separator. Replace it with the step in step 3.
